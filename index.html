@@ -3,430 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro ASCII Art Converter</title>
+    <title>我的隨身筆記</title>
+    <!-- 引入 Tailwind CSS (用於快速排版) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 和 ReactDOM (用於建構網頁邏輯) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 引入 Babel (讓瀏覽器看懂 React 程式碼) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 引入圖標庫 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
-        /* 自定義復古終端機效果 */
-        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
-
-        body {
-            background-color: #0d1117;
-            font-family: 'Courier New', Courier, monospace; /* 預設單寬字體 */
+        /* 隱藏捲軸但保留功能，讓手機體驗更好 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
         }
-
-        /* 螢幕發光效果 */
-        .crt-glow {
-            text-shadow: 0 0 5px #22c55e, 0 0 10px #22c55e;
-        }
-
-        /* 模擬掃描線 (可選) */
-        .scanline {
-            width: 100%;
-            height: 100px;
-            z-index: 10;
-            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(34, 197, 94, 0.04) 50%, rgba(0,0,0,0) 100%);
-            opacity: 0.1;
-            background-size: 100% 4px;
-            position: absolute;
-            pointer-events: none;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 100%; 
-        }
-        
-        /* 隱藏滾動條但保留功能 */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #000; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #22c55e; 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #4ade80; 
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
     </style>
 </head>
-<body class="h-screen w-full flex flex-col items-center justify-center overflow-hidden text-green-500 selection:bg-green-900 selection:text-green-200">
+<body class="bg-gray-100 touch-pan-y">
 
-    <div class="scanline"></div>
+    <div id="root"></div>
 
-    <div class="relative z-20 w-full max-w-5xl p-6 h-full flex flex-col gap-6">
-        
-        <header class="text-center border-b-2 border-green-500/50 pb-4">
-            <h1 class="text-3xl md:text-5xl font-bold uppercase tracking-widest crt-glow">ASCII Art Generator_</h1>
-            <p class="text-xs md:text-sm mt-2 opacity-80">> SYSTEM READY. WAITING FOR INPUT...</p>
-        </header>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-        <section class="flex-shrink-0">
-            <label for="input-text" class="block mb-2 text-sm font-bold uppercase">> Input Text:</label>
-            <textarea 
-                id="input-text" 
-                placeholder="TYPE HERE..." 
-                class="w-full bg-black/50 border-2 border-green-700 text-green-400 p-4 text-xl focus:outline-none focus:border-green-400 focus:shadow-[0_0_15px_rgba(34,197,94,0.5)] transition-all rounded-sm uppercase resize-none h-24 font-mono"
-                autofocus
-            ></textarea>
-        </section>
+        function App() {
+            // 1. 設定狀態：這是我們的資料庫
+            const [notes, setNotes] = useState([]);
+            const [inputValue, setInputValue] = useState("");
 
-        <section class="flex-grow flex flex-col min-h-0">
-            <div class="flex justify-between items-center mb-2">
-                <label class="text-sm font-bold uppercase">> Output Preview:</label>
-                <button 
-                    id="copy-btn" 
-                    class="px-4 py-1 border border-green-600 hover:bg-green-600 hover:text-black transition-colors text-sm font-bold uppercase active:translate-y-0.5"
-                >
-                    [ COPY OUTPUT ]
-                </button>
-            </div>
-            
-            <div class="relative flex-grow bg-black border-2 border-green-700 p-4 overflow-auto rounded-sm shadow-inner">
-                <pre id="ascii-output" class="font-mono text-xs md:text-sm leading-none whitespace-pre crt-glow"></pre>
-            </div>
-        </section>
-
-        <footer class="text-center text-green-800 text-xs">
-            v1.0.0 | MEM: 640K OK
-        </footer>
-    </div>
-
-    <script>
-        // === ASCII 字體庫定義 (5行高度) ===
-        // 使用 # 字元繪製
-        const asciiFont = {
-            'A': [
-                "  ###  ",
-                " #   # ",
-                " ##### ",
-                " #   # ",
-                " #   # "
-            ],
-            'B': [
-                " ####  ",
-                " #   # ",
-                " ####  ",
-                " #   # ",
-                " ####  "
-            ],
-            'C': [
-                "  #### ",
-                " #     ",
-                " #     ",
-                " #     ",
-                "  #### "
-            ],
-            'D': [
-                " ####  ",
-                " #   # ",
-                " #   # ",
-                " #   # ",
-                " ####  "
-            ],
-            'E': [
-                " ##### ",
-                " #     ",
-                " ####  ",
-                " #     ",
-                " ##### "
-            ],
-            'F': [
-                " ##### ",
-                " #     ",
-                " ####  ",
-                " #     ",
-                " #     "
-            ],
-            'G': [
-                "  #### ",
-                " #     ",
-                " #  ## ",
-                " #   # ",
-                "  #### "
-            ],
-            'H': [
-                " #   # ",
-                " #   # ",
-                " ##### ",
-                " #   # ",
-                " #   # "
-            ],
-            'I': [
-                " ##### ",
-                "   #   ",
-                "   #   ",
-                "   #   ",
-                " ##### "
-            ],
-            'J': [
-                " ##### ",
-                "   #   ",
-                "   #   ",
-                " # #   ",
-                "  #    "
-            ],
-            'K': [
-                " #   # ",
-                " #  #  ",
-                " ###   ",
-                " #  #  ",
-                " #   # "
-            ],
-            'L': [
-                " #     ",
-                " #     ",
-                " #     ",
-                " #     ",
-                " ##### "
-            ],
-            'M': [
-                " #   # ",
-                " ## ## ",
-                " # # # ",
-                " #   # ",
-                " #   # "
-            ],
-            'N': [
-                " #   # ",
-                " ##  # ",
-                " # # # ",
-                " #  ## ",
-                " #   # "
-            ],
-            'O': [
-                "  ###  ",
-                " #   # ",
-                " #   # ",
-                " #   # ",
-                "  ###  "
-            ],
-            'P': [
-                " ####  ",
-                " #   # ",
-                " ####  ",
-                " #     ",
-                " #     "
-            ],
-            'Q': [
-                "  ###  ",
-                " #   # ",
-                " #   # ",
-                " #  ## ",
-                "  #### "
-            ],
-            'R': [
-                " ####  ",
-                " #   # ",
-                " ####  ",
-                " #  #  ",
-                " #   # "
-            ],
-            'S': [
-                "  #### ",
-                " #     ",
-                "  ###  ",
-                "     # ",
-                " ####  "
-            ],
-            'T': [
-                " ##### ",
-                "   #   ",
-                "   #   ",
-                "   #   ",
-                "   #   "
-            ],
-            'U': [
-                " #   # ",
-                " #   # ",
-                " #   # ",
-                " #   # ",
-                "  ###  "
-            ],
-            'V': [
-                " #   # ",
-                " #   # ",
-                " #   # ",
-                "  # #  ",
-                "   #   "
-            ],
-            'W': [
-                " #   # ",
-                " #   # ",
-                " # # # ",
-                " ## ## ",
-                " #   # "
-            ],
-            'X': [
-                " #   # ",
-                "  # #  ",
-                "   #   ",
-                "  # #  ",
-                " #   # "
-            ],
-            'Y': [
-                " #   # ",
-                "  # #  ",
-                "   #   ",
-                "   #   ",
-                "   #   "
-            ],
-            'Z': [
-                " ##### ",
-                "    #  ",
-                "   #   ",
-                "  #    ",
-                " ##### "
-            ],
-            '0': [
-                "  ###  ",
-                " #  ## ",
-                " # # # ",
-                " ##  # ",
-                "  ###  "
-            ],
-            '1': [
-                "   #   ",
-                "  ##   ",
-                "   #   ",
-                "   #   ",
-                " ##### "
-            ],
-            '2': [
-                "  ###  ",
-                " #   # ",
-                "   ##  ",
-                "  #    ",
-                " ##### "
-            ],
-            '3': [
-                " ##### ",
-                "    #  ",
-                "  ##   ",
-                "    #  ",
-                " ##### "
-            ],
-            '4': [
-                "   #   ",
-                "  ##   ",
-                " # #   ",
-                " ##### ",
-                "   #   "
-            ],
-            '5': [
-                " ##### ",
-                " #     ",
-                " ####  ",
-                "     # ",
-                " ####  "
-            ],
-            '6': [
-                "  ###  ",
-                " #     ",
-                " ####  ",
-                " #   # ",
-                "  ###  "
-            ],
-            '7': [
-                " ##### ",
-                "    #  ",
-                "   #   ",
-                "  #    ",
-                " #     "
-            ],
-            '8': [
-                "  ###  ",
-                " #   # ",
-                "  ###  ",
-                " #   # ",
-                "  ###  "
-            ],
-            '9': [
-                "  ###  ",
-                " #   # ",
-                "  #### ",
-                "     # ",
-                "  ###  "
-            ],
-            ' ': [ // 空格
-                "     ",
-                "     ",
-                "     ",
-                "     ",
-                "     "
-            ],
-            '?': [ // 未知字元替補
-                " ### ",
-                "   # ",
-                "  #  ",
-                "     ",
-                "  #  "
-            ]
-        };
-
-        // === 邏輯控制 ===
-        const inputEl = document.getElementById('input-text');
-        const outputEl = document.getElementById('ascii-output');
-        const copyBtn = document.getElementById('copy-btn');
-
-        // 轉換函數
-        function convertToAscii(text) {
-            if (!text) return '';
-            
-            // 將文字分行 (處理多行輸入)
-            const lines = text.toUpperCase().split('\n');
-            let result = '';
-
-            // 針對每一行輸入處理
-            lines.forEach(line => {
-                // 每一行輸入對應 ASCII 字體的 5 行
-                for (let i = 0; i < 5; i++) {
-                    let rowString = '';
-                    for (let char of line) {
-                        const pattern = asciiFont[char] || asciiFont['?'];
-                        rowString += pattern[i] + ' '; // 加上一點字元間距
-                    }
-                    result += rowString + '\n';
+            // 2. 初始化：網頁一打開，就去 localStorage 抓資料
+            useEffect(() => {
+                const savedNotes = localStorage.getItem("my-web-notes");
+                if (savedNotes) {
+                    setNotes(JSON.parse(savedNotes));
                 }
-                result += '\n'; // 輸入換行時，輸出增加空行區隔
-            });
+            }, []);
 
-            return result;
+            // 3. 儲存機制：只要 notes 有變動，就同步存到 localStorage
+            useEffect(() => {
+                localStorage.setItem("my-web-notes", JSON.stringify(notes));
+            }, [notes]);
+
+            // 新增筆記的功能
+            const handleAddNote = () => {
+                if (!inputValue.trim()) return; // 防止空白內容
+                
+                const newNote = {
+                    id: Date.now(), // 用時間當作唯一 ID
+                    text: inputValue,
+                    date: new Date().toLocaleString('zh-TW', { hour12: false })
+                };
+
+                // 把新筆記放在最上面 (unshift 的概念)
+                setNotes([newNote, ...notes]);
+                setInputValue(""); // 清空輸入框
+            };
+
+            // 刪除筆記的功能
+            const handleDeleteNote = (id) => {
+                const isConfirmed = window.confirm("確定要刪除這條筆記嗎？");
+                if (isConfirmed) {
+                    const updatedNotes = notes.filter(note => note.id !== id);
+                    setNotes(updatedNotes);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col max-w-md mx-auto bg-white shadow-xl min-h-screen relative">
+                    {/* 標題區 */}
+                    <div className="bg-indigo-600 p-5 pt-8 text-white shadow-md z-10 sticky top-0">
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            <i data-lucide="notebook-pen" className="w-6 h-6"></i>
+                            隨身筆記 App
+                        </h1>
+                        <p className="text-indigo-200 text-sm mt-1">記錄您的想法，資料儲存於本機</p>
+                    </div>
+
+                    {/* 筆記列表區 */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 no-scrollbar">
+                        {notes.length === 0 ? (
+                            <div className="text-center text-gray-400 mt-20 flex flex-col items-center">
+                                <i data-lucide="ghost" className="w-16 h-16 mb-4 opacity-50"></i>
+                                <p>目前沒有筆記<br/>試著寫點什麼吧！</p>
+                            </div>
+                        ) : (
+                            notes.map(note => (
+                                <div key={note.id} className="bg-gray-50 border-l-4 border-indigo-500 p-4 rounded-r-lg shadow-sm animate-fade-in hover:bg-gray-100 transition-colors group">
+                                    <div className="flex justify-between items-start">
+                                        <p className="text-gray-800 whitespace-pre-wrap leading-relaxed flex-1">{note.text}</p>
+                                        <button 
+                                            onClick={() => handleDeleteNote(note.id)}
+                                            className="text-gray-300 hover:text-red-500 p-1 ml-2 transition-colors"
+                                            title="刪除"
+                                        >
+                                            <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-3 text-right">{note.date}</p>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    {/* 底部輸入區 */}
+                    <div className="p-4 bg-white border-t border-gray-200 fixed bottom-0 w-full max-w-md pb-6 safe-area-bottom">
+                        <div className="flex gap-2 items-end">
+                            <textarea
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                placeholder="輸入內容..."
+                                className="w-full bg-gray-100 text-gray-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none h-14 max-h-32 shadow-inner"
+                                style={{minHeight: '3.5rem'}}
+                            />
+                            <button 
+                                onClick={handleAddNote}
+                                className={`p-3 rounded-full shadow-lg transition-all transform active:scale-95 flex-shrink-0 ${
+                                    inputValue.trim() ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
+                                disabled={!inputValue.trim()}
+                            >
+                                <i data-lucide="send-horizontal" className="w-6 h-6"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
         }
 
-        // 監聽輸入事件 (即時更新)
-        inputEl.addEventListener('input', (e) => {
-            const rawText = e.target.value;
-            const asciiArt = convertToAscii(rawText);
-            outputEl.textContent = asciiArt;
-        });
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
 
-        // 複製功能
-        copyBtn.addEventListener('click', () => {
-            const textToCopy = outputEl.textContent;
-            if (!textToCopy) return;
-
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = "[ COPIED! ]";
-                copyBtn.classList.add('bg-green-600', 'text-black');
-                
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.classList.remove('bg-green-600', 'text-black');
-                }, 1500);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
-            });
-        });
-
-        // 初始化：給一個預設文字
-        inputEl.value = "HELLO";
-        inputEl.dispatchEvent(new Event('input'));
-
+        // 初始化圖標
+        setTimeout(() => {
+            lucide.createIcons();
+        }, 100);
+        
+        // 每次渲染後更新圖標
+        setInterval(() => {
+            lucide.createIcons();
+        }, 1000);
     </script>
 </body>
 </html>
