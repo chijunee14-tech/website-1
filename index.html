@@ -3,98 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的隨身筆記</title>
-    <!-- 引入 Tailwind CSS (用於快速排版) -->
+    <title>雲端同步記事本</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 React 和 ReactDOM (用於建構網頁邏輯) -->
+    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <!-- 引入 Babel (讓瀏覽器看懂 React 程式碼) -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- 引入圖標庫 -->
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    
+
+    <!-- 🔥 1. 引入 Firebase SDK (使用 Compat 版本以簡化 HTML 直接引用) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
     <style>
-        /* 隱藏捲軸但保留功能，讓手機體驗更好 */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .loading-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-gray-100 touch-pan-y">
-
     <div id="root"></div>
 
     <script type="text/babel">
+        // 🔥🔥 2. 設定 Firebase (請用您剛剛申請的 Config 取代下方內容) 🔥🔥
+        // 您的 Config 看起來會像這樣： { apiKey: "AIzaSy...", authDomain: "...", ... }
+        const firebaseConfig = {
+            // 請將您的 config 內容貼在這邊 (保留大括號)
+            // apiKey: "您的API_KEY",
+            // authDomain: "您的專案ID.firebaseapp.com",
+            // projectId: "您的專案ID",
+            // storageBucket: "...",
+            // messagingSenderId: "...",
+            // appId: "..."
+            apiKey: "AIzaSyD2knEUf18zYyQsNZ0DpsSTogH8Iuq5Qdk",
+            authDomain: "my-memo-app-99a6e.firebaseapp.com",
+            projectId: "my-memo-app-99a6e",
+            storageBucket: "my-memo-app-99a6e.firebasestorage.app",
+            messagingSenderId: "69417383872",
+            appId: "1:69417383872:web:6d72e5851dae57c3aa7a25"
+        };
+
+        // 初始化 Firebase (防止重複初始化)
+        if (!firebase.apps.length) {
+            try {
+                firebase.initializeApp(firebaseConfig);
+            } catch (error) {
+                console.error("Firebase 初始化失敗，請檢查 Config 是否正確填寫", error);
+                alert("請記得填寫 index.html 裡的 firebaseConfig 喔！");
+            }
+        }
+        const db = firebase.firestore();
+
         const { useState, useEffect } = React;
 
         function App() {
-            // 1. 設定狀態：這是我們的資料庫
             const [notes, setNotes] = useState([]);
             const [inputValue, setInputValue] = useState("");
+            const [isLoading, setIsLoading] = useState(true);
 
-            // 2. 初始化：網頁一打開，就去 localStorage 抓資料
+            // 3. 監聽資料庫變化 (Real-time listener)
             useEffect(() => {
-                const savedNotes = localStorage.getItem("my-web-notes");
-                if (savedNotes) {
-                    setNotes(JSON.parse(savedNotes));
-                }
+                // 訂閱 'notes' 集合，並依照時間排序
+                const unsubscribe = db.collection('notes')
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot((snapshot) => {
+                        const newNotes = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        setNotes(newNotes);
+                        setIsLoading(false);
+                    }, (error) => {
+                        console.error("讀取失敗:", error);
+                        setIsLoading(false);
+                    });
+
+                // 組件卸載時取消訂閱
+                return () => unsubscribe();
             }, []);
 
-            // 3. 儲存機制：只要 notes 有變動，就同步存到 localStorage
-            useEffect(() => {
-                localStorage.setItem("my-web-notes", JSON.stringify(notes));
-            }, [notes]);
-
-            // 新增筆記的功能
-            const handleAddNote = () => {
-                if (!inputValue.trim()) return; // 防止空白內容
+            // 4. 新增筆記 (寫入雲端)
+            const handleAddNote = async () => {
+                if (!inputValue.trim()) return;
                 
-                const newNote = {
-                    id: Date.now(), // 用時間當作唯一 ID
-                    text: inputValue,
-                    date: new Date().toLocaleString('zh-TW', { hour12: false })
-                };
-
-                // 把新筆記放在最上面 (unshift 的概念)
-                setNotes([newNote, ...notes]);
-                setInputValue(""); // 清空輸入框
+                try {
+                    await db.collection('notes').add({
+                        text: inputValue,
+                        createdAt: new Date().toISOString(), // 使用標準時間格式
+                        displayDate: new Date().toLocaleString('zh-TW', { hour12: false })
+                    });
+                    setInputValue(""); 
+                    // 不用手動更新 notes，因為上面的 onSnapshot 會自動偵測到變化並更新畫面
+                } catch (error) {
+                    console.error("新增失敗:", error);
+                    alert("新增失敗，請檢查網路連線");
+                }
             };
 
-            // 刪除筆記的功能
-            const handleDeleteNote = (id) => {
+            // 5. 刪除筆記 (從雲端移除)
+            const handleDeleteNote = async (id) => {
                 const isConfirmed = window.confirm("確定要刪除這條筆記嗎？");
                 if (isConfirmed) {
-                    const updatedNotes = notes.filter(note => note.id !== id);
-                    setNotes(updatedNotes);
+                    try {
+                        await db.collection('notes').doc(id).delete();
+                    } catch (error) {
+                        console.error("刪除失敗:", error);
+                    }
                 }
             };
 
             return (
                 <div className="min-h-screen flex flex-col max-w-md mx-auto bg-white shadow-xl min-h-screen relative">
-                    {/* 標題區 */}
-                    <div className="bg-indigo-600 p-5 pt-8 text-white shadow-md z-10 sticky top-0">
+                    <div className="bg-blue-600 p-5 pt-8 text-white shadow-md z-10 sticky top-0">
                         <h1 className="text-2xl font-bold flex items-center gap-2">
-                            <i data-lucide="notebook-pen" className="w-6 h-6"></i>
-                            隨身筆記 App
+                            <i data-lucide="cloud" className="w-6 h-6"></i>
+                            雲端同步筆記
                         </h1>
-                        <p className="text-indigo-200 text-sm mt-1">記錄您的想法，資料儲存於本機</p>
+                        <p className="text-blue-200 text-sm mt-1">資料儲存於 Firebase Firestore</p>
                     </div>
 
-                    {/* 筆記列表區 */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 no-scrollbar">
-                        {notes.length === 0 ? (
+                        {isLoading ? (
                             <div className="text-center text-gray-400 mt-20 flex flex-col items-center">
-                                <i data-lucide="ghost" className="w-16 h-16 mb-4 opacity-50"></i>
-                                <p>目前沒有筆記<br/>試著寫點什麼吧！</p>
+                                <i data-lucide="loader-2" className="w-8 h-8 animate-spin mb-2"></i>
+                                <p>正在連線到雲端...</p>
+                            </div>
+                        ) : notes.length === 0 ? (
+                            <div className="text-center text-gray-400 mt-20 flex flex-col items-center">
+                                <i data-lucide="cloud-off" className="w-16 h-16 mb-4 opacity-50"></i>
+                                <p>雲端目前空空的<br/>寫下第一條筆記吧！</p>
                             </div>
                         ) : (
                             notes.map(note => (
-                                <div key={note.id} className="bg-gray-50 border-l-4 border-indigo-500 p-4 rounded-r-lg shadow-sm animate-fade-in hover:bg-gray-100 transition-colors group">
+                                <div key={note.id} className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg shadow-sm animate-fade-in hover:bg-blue-100 transition-colors group">
                                     <div className="flex justify-between items-start">
                                         <p className="text-gray-800 whitespace-pre-wrap leading-relaxed flex-1">{note.text}</p>
                                         <button 
@@ -105,26 +150,25 @@
                                             <i data-lucide="trash-2" className="w-4 h-4"></i>
                                         </button>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-3 text-right">{note.date}</p>
+                                    <p className="text-xs text-gray-400 mt-3 text-right">{note.displayDate}</p>
                                 </div>
                             ))
                         )}
                     </div>
 
-                    {/* 底部輸入區 */}
                     <div className="p-4 bg-white border-t border-gray-200 fixed bottom-0 w-full max-w-md pb-6 safe-area-bottom">
                         <div className="flex gap-2 items-end">
                             <textarea
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 placeholder="輸入內容..."
-                                className="w-full bg-gray-100 text-gray-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none h-14 max-h-32 shadow-inner"
+                                className="w-full bg-gray-100 text-gray-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-14 max-h-32 shadow-inner"
                                 style={{minHeight: '3.5rem'}}
                             />
                             <button 
                                 onClick={handleAddNote}
                                 className={`p-3 rounded-full shadow-lg transition-all transform active:scale-95 flex-shrink-0 ${
-                                    inputValue.trim() ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    inputValue.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                 }`}
                                 disabled={!inputValue.trim()}
                             >
@@ -139,15 +183,8 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
 
-        // 初始化圖標
-        setTimeout(() => {
-            lucide.createIcons();
-        }, 100);
-        
-        // 每次渲染後更新圖標
-        setInterval(() => {
-            lucide.createIcons();
-        }, 1000);
+        setTimeout(() => lucide.createIcons(), 100);
+        setInterval(() => lucide.createIcons(), 1000);
     </script>
 </body>
 </html>
